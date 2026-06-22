@@ -42,3 +42,7 @@ yarn-error.*
 
 # personal Claude Code permission overrides
 .claude/settings.local.json
+
+# Python (web/)
+__pycache__/
+*.pyc
