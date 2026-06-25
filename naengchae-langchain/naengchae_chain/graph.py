@@ -5,6 +5,7 @@
 # /root/Langchain의 06-final_exercise 노트북에서 사용한
 # "갈래길(재시도 횟수 제한) + 조건부 라우징" 패턴을 따릅니다.
 
+import uuid
 from datetime import date
 from typing import Optional, TypedDict
 
@@ -16,6 +17,7 @@ from langgraph.graph import END, START, StateGraph
 
 from .chain import EXPIRY_WARNING_DAYS, _format_ingredients
 from .models import FridgeIngredient, RecipeRecommendation, UserProfile
+from .observability import extract_usage, log_event, summarize_usage, timed
 from .prompts import recipe_agent_prompt
 
 MAX_RETRIES = 2
@@ -39,6 +41,7 @@ ENV_FORBIDDEN_KEYWORDS: dict[str, list[str]] = {
 class RecipeAgentState(TypedDict):
     """레시피 추천 에이전트의 공유 상태."""
 
+    trace_id: str
     profile: UserProfile
     ingredients: list[FridgeIngredient]
     ingredients_text: str
@@ -49,6 +52,7 @@ class RecipeAgentState(TypedDict):
     feedback: str
     retry_count: int
     valid: bool
+    token_usage: list[dict]
 
 
 def _expiring_names(ingredients: list[FridgeIngredient], today: date) -> list[str]:
@@ -88,7 +92,10 @@ def build_recipe_agent_graph(
 ) -> Runnable:
     """retrieve -> generate -> validate -> (재시도 or 종료) 그래프를 컴파일합니다."""
 
-    generate_chain = recipe_agent_prompt | llm.with_structured_output(RecipeRecommendation)
+    model_name = getattr(llm, "model", "unknown")
+    generate_chain = recipe_agent_prompt | llm.with_structured_output(
+        RecipeRecommendation, include_raw=True
+    )
 
     def retrieve_node(state: RecipeAgentState) -> dict:
         profile = state["profile"]
@@ -98,7 +105,15 @@ def build_recipe_agent_graph(
             f"음식 취향: {', '.join(profile.foodPreference)}\n"
             f"유통기한 임박 재료: {', '.join(state['expiring_names']) or '없음'}"
         )
-        docs = retriever.invoke(query)
+        with timed() as t:
+            docs = retriever.invoke(query)
+        log_event(
+            "retrieve",
+            state["trace_id"],
+            duration_ms=t["duration_ms"],
+            query_chars=len(query),
+            num_docs=len(docs),
+        )
         return {"retrieved_context": _format_docs(docs)}
 
     def generate_node(state: RecipeAgentState) -> dict:
@@ -107,21 +122,51 @@ def build_recipe_agent_graph(
         feedback_section = (
             f"\n[이전 추천의 문제점 - 반드시 수정하세요]\n{feedback}\n" if feedback else ""
         )
-        result = generate_chain.invoke(
-            {
-                "householdType": profile.householdType,
-                "memberCount": profile.memberCount,
-                "cookingEnv": profile.cookingEnv,
-                "foodPreference": profile.foodPreference,
-                "ingredients_text": state["ingredients_text"],
-                "expiring_ingredients_text": state["expiring_ingredients_text"],
-                "retrieved_context": state["retrieved_context"],
-                "feedback_section": feedback_section,
-            }
+        attempt = state["retry_count"] + 1
+        with timed() as t:
+            result = generate_chain.invoke(
+                {
+                    "householdType": profile.householdType,
+                    "memberCount": profile.memberCount,
+                    "cookingEnv": profile.cookingEnv,
+                    "foodPreference": profile.foodPreference,
+                    "ingredients_text": state["ingredients_text"],
+                    "expiring_ingredients_text": state["expiring_ingredients_text"],
+                    "retrieved_context": state["retrieved_context"],
+                    "feedback_section": feedback_section,
+                }
+            )
+
+        if result["parsing_error"] is not None:
+            raise result["parsing_error"]
+
+        usage = extract_usage(result["raw"], model_name)
+        log_event(
+            "generate",
+            state["trace_id"],
+            attempt=attempt,
+            duration_ms=t["duration_ms"],
+            **usage,
         )
-        return {"recommendation": result}
+        return {
+            "recommendation": result["parsed"],
+            "token_usage": state["token_usage"] + [usage],
+        }
 
     def validate_node(state: RecipeAgentState) -> dict:
+        with timed() as t:
+            result = _validate(state)
+        log_event(
+            "validate",
+            state["trace_id"],
+            duration_ms=t["duration_ms"],
+            valid=result["valid"],
+            retry_count=result["retry_count"],
+            num_issues=len(result["feedback"].split("\n")) if result["feedback"] else 0,
+        )
+        return result
+
+    def _validate(state: RecipeAgentState) -> dict:
         recommendation = state["recommendation"]
         cooking_env = state["profile"].cookingEnv
         fridge_names = [ingredient.name for ingredient in state["ingredients"]]
@@ -201,13 +246,28 @@ def recommend_recipes_agent(
 
     반환값: (최종 추천 결과, 최종 상태) - 상태에는 검증 결과(valid, feedback,
     retry_count)와 검색된 참고 자료(retrieved_context)가 포함되어 디버깅에 사용할 수 있습니다.
+    또한 trace_id로 묶인 구조화 로그(retrieve/generate/validate/request_start/request_end)가
+    logs/naengchae.jsonl과 stdout에 기록되고, token_usage에 LLM 호출별 토큰/비용이 쌓입니다.
     """
     today = today or date.today()
     graph = build_recipe_agent_graph(llm, retriever)
 
     ingredients_text, expiring_ingredients_text = _format_ingredients(ingredients, today)
+    trace_id = str(uuid.uuid4())
+
+    log_event(
+        "request_start",
+        trace_id,
+        household_type=profile.householdType,
+        member_count=profile.memberCount,
+        cooking_env=profile.cookingEnv,
+        food_preference=profile.foodPreference,
+        num_ingredients=len(ingredients),
+        num_expiring=len(_expiring_names(ingredients, today)),
+    )
 
     initial_state: RecipeAgentState = {
+        "trace_id": trace_id,
         "profile": profile,
         "ingredients": ingredients,
         "ingredients_text": ingredients_text,
@@ -218,7 +278,19 @@ def recommend_recipes_agent(
         "feedback": "",
         "retry_count": 0,
         "valid": False,
+        "token_usage": [],
     }
 
-    final_state = graph.invoke(initial_state, config={"recursion_limit": RECURSION_LIMIT})
+    with timed() as t:
+        final_state = graph.invoke(initial_state, config={"recursion_limit": RECURSION_LIMIT})
+
+    log_event(
+        "request_end",
+        trace_id,
+        duration_ms=t["duration_ms"],
+        valid=final_state["valid"],
+        retry_count=final_state["retry_count"],
+        **summarize_usage(final_state["token_usage"]),
+    )
+
     return final_state["recommendation"], final_state
