@@ -1,0 +1,390 @@
+{
+  "summary": {
+    "total_cases": 24,
+    "errored_cases": 0,
+    "final_pass_rate": 0.917,
+    "first_try_pass_rate": 0.708,
+    "avg_retry_count": 0.5,
+    "retry_distribution": {
+      "0": 17,
+      "1": 4,
+      "2": 1,
+      "3": 2
+    },
+    "failure_categories": {
+      "expiring_flag_false_positive": 1,
+      "ingredient_not_in_fridge": 1
+    },
+    "avg_latency_seconds": 23.19
+  },
+  "results": [
+    {
+      "id": "microwave_basic",
+      "description": "전자레인지만, 1인 가구, 기본 재료 - 가장 제약이 큰 조리환경",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "계란 단호박 찜",
+        "단호박 즉석밥 찜",
+        "계란 대파 찜"
+      ],
+      "elapsed_seconds": 8.69
+    },
+    {
+      "id": "microwave_expiring",
+      "description": "전자레인지 + 유통기한 임박 재료 활용 검증",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "계란 두부 감자 전자레인지 찜",
+        "계란 감자 전자레인지 스크램블",
+        "두부 감자 전자레인지 조림"
+      ],
+      "elapsed_seconds": 9.8
+    },
+    {
+      "id": "microwave_highprotein",
+      "description": "전자레인지 + 고단백 취향 - 구이/팬 요리 유혹이 큰 조합",
+      "error": null,
+      "valid": false,
+      "retry_count": 3,
+      "issue_categories": [
+        "expiring_flag_false_positive"
+      ],
+      "issues": [
+        "레시피 2(계란 전자레인지 스크램블): usesExpiringIngredient가 true이지만 유통기한 임박 재료를 실제로 사용하지 않았습니다."
+      ],
+      "recipe_names": [
+        "닭가슴살 전자레인지 찜",
+        "계란 전자레인지 스크램블",
+        "그릭요거트 닭가슴살 샐러드"
+      ],
+      "elapsed_seconds": 28.23
+    },
+    {
+      "id": "microwave_japanese",
+      "description": "전자레인지 + 일식 취향",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "두부계란찜",
+        "두부계란밥",
+        "두부계란국"
+      ],
+      "elapsed_seconds": 12.35
+    },
+    {
+      "id": "microwave_minimal",
+      "description": "전자레인지 + 재료 2개뿐인 빈약한 냉장고 (edge case)",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "계란 감자 찜",
+        "감자 계란 샐러드",
+        "감자 계란 스프"
+      ],
+      "elapsed_seconds": 10.5
+    },
+    {
+      "id": "oneburner_basic",
+      "description": "가스레인지 1구, 1인 가구, 기본 재료",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "두부 계란 볶음",
+        "두부 된장국",
+        "두부 부침"
+      ],
+      "elapsed_seconds": 10.18
+    },
+    {
+      "id": "oneburner_expiring",
+      "description": "가스레인지 1구 + 유통기한 임박 채소 다수",
+      "error": null,
+      "valid": true,
+      "retry_count": 1,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "돼지고기 애호박 볶음",
+        "두부 된장찌개",
+        "양파 돼지고기 덮밥"
+      ],
+      "elapsed_seconds": 24.39
+    },
+    {
+      "id": "oneburner_western",
+      "description": "가스레인지 1구 + 양식 취향 (오븐 없이 양식 만들기 도전)",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "치즈 토마토 파스타",
+        "양파 치즈 수프",
+        "양파 치즈 볶음"
+      ],
+      "elapsed_seconds": 8.25
+    },
+    {
+      "id": "oneburner_highprotein",
+      "description": "가스레인지 1구 + 고단백 취향",
+      "error": null,
+      "valid": true,
+      "retry_count": 1,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "닭가슴살 스테이크",
+        "계란 두부 볶음",
+        "두부 닭가슴살 조림"
+      ],
+      "elapsed_seconds": 26.65
+    },
+    {
+      "id": "oneburner_family_large",
+      "description": "가스레인지 1구 + 5인 이상 대가구",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "돼지고기 김치찌개",
+        "두부 김치전",
+        "돼지고기 두부 김치 볶음"
+      ],
+      "elapsed_seconds": 9.93
+    },
+    {
+      "id": "full_basic",
+      "description": "풀 옵션 조리환경 - 제약이 거의 없는 컨트롤 그룹",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "닭다리살 감자 당근 양파 조림",
+        "닭다리살 감자 당근 양파 카레",
+        "닭다리살 감자 당근 양파 볶음"
+      ],
+      "elapsed_seconds": 8.55
+    },
+    {
+      "id": "full_western",
+      "description": "풀 옵션 + 양식 취향",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "버터 감자 그라탕",
+        "닭가슴살 치즈 스테이크",
+        "감자 치즈 그라탕 (오븐 없이)"
+      ],
+      "elapsed_seconds": 10.13
+    },
+    {
+      "id": "full_expiring",
+      "description": "풀 옵션 + 유통기한 임박 단백질",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "삼겹살 양파 대파 볶음",
+        "계란 대파 볶음밥",
+        "삼겹살 대파 계란찜"
+      ],
+      "elapsed_seconds": 7.33
+    },
+    {
+      "id": "full_multi_preference",
+      "description": "풀 옵션 + 복수 음식 취향 (한식+일식)",
+      "error": null,
+      "valid": true,
+      "retry_count": 2,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "두부 계란 볶음",
+        "두부 된장국",
+        "계란 두부 스테이크"
+      ],
+      "elapsed_seconds": 180.76
+    },
+    {
+      "id": "full_family_large",
+      "description": "풀 옵션 + 5인 이상 대가구 + 재료 풍부",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "소고기 감자 당근 버섯 스튜",
+        "두부 버섯 된장국",
+        "소고기 감자 카레"
+      ],
+      "elapsed_seconds": 18.78
+    },
+    {
+      "id": "boundary_d3_exact",
+      "description": "유통기한 D-3 정확히 경계값 (EXPIRY_WARNING_DAYS=3, 포함 여부 검증)",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "두부 계란 볶음",
+        "두부 된장찌개",
+        "두부 양파 카레"
+      ],
+      "elapsed_seconds": 9.93
+    },
+    {
+      "id": "boundary_already_expired",
+      "description": "유통기한이 이미 지난 재료 (D+ 음수, edge case)",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "애호박 두부 볶음",
+        "두부 된장찌개",
+        "두부 양파 볶음"
+      ],
+      "elapsed_seconds": 11.99
+    },
+    {
+      "id": "no_expiry_date",
+      "description": "모든 재료에 유통기한 정보 없음 (expiryDate=null)",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "두부 계란 볶음",
+        "계란 두부 전",
+        "두부 계란 찜"
+      ],
+      "elapsed_seconds": 12.45
+    },
+    {
+      "id": "empty_fridge",
+      "description": "냉장고가 완전히 비어있는 극단적 edge case",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "계란 두부 볶음",
+        "감자 양파 스프",
+        "오븐 구운 감자"
+      ],
+      "elapsed_seconds": 7.54
+    },
+    {
+      "id": "ingredient_name_variant",
+      "description": "재료 이름 표기 다양성 (띄어쓰기/수식어) - usedIngredients 매칭 안정성 검증",
+      "error": null,
+      "valid": true,
+      "retry_count": 1,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "두부조림",
+        "두부된장국",
+        "두부볶음"
+      ],
+      "elapsed_seconds": 29.37
+    },
+    {
+      "id": "unusual_ingredients",
+      "description": "지식베이스에 없는 낯선 재료 조합 (RAG 컨텍스트 빈약 상황)",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "아스파라거스 리코타 치즈 구이",
+        "리코타 치즈 아스파라거스 샐러드",
+        "발사믹 식초 아스파라거스 볶음"
+      ],
+      "elapsed_seconds": 12.17
+    },
+    {
+      "id": "many_basic_seasonings_only",
+      "description": "기본 조미료만 보유 (재료가 거의 없어 missingIngredients 의존도 높음)",
+      "error": null,
+      "valid": true,
+      "retry_count": 1,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "계란말이",
+        "계란찜",
+        "계란후라이"
+      ],
+      "elapsed_seconds": 22.47
+    },
+    {
+      "id": "japanese_oneburner",
+      "description": "가스레인지 1구 + 일식 취향",
+      "error": null,
+      "valid": true,
+      "retry_count": 0,
+      "issue_categories": [],
+      "issues": [],
+      "recipe_names": [
+        "계란 우동",
+        "계란 대파 볶음밥",
+        "계란 대파 우동 국물"
+      ],
+      "elapsed_seconds": 14.92
+    },
+    {
+      "id": "korean_full_large_pantry",
+      "description": "풀 옵션 + 한식 + 재료가 매우 많은 상황 (재료 우선순위 결정 검증)",
+      "error": null,
+      "valid": false,
+      "retry_count": 3,
+      "issue_categories": [
+        "ingredient_not_in_fridge"
+      ],
+      "issues": [
+        "레시피 1(돼지고기 두부 김치찌개): usedIngredients의 '김치'가 보유 재료 목록에 없습니다."
+      ],
+      "recipe_names": [
+        "돼지고기 두부 김치찌개",
+        "두부 감자 조림",
+        "돼지고기 감자 볶음"
+      ],
+      "elapsed_seconds": 61.25
+    }
+  ]
+}
