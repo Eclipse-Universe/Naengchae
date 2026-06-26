@@ -503,11 +503,15 @@
       <div class="ingredient-input-row">
         <input type="text" id="ing-name" placeholder="재료명 (예: 계란)" onkeydown="if(event.key==='Enter') addIngredient()" style="flex:1">
       </div>
-      <label class="field-label">유통기한 (선택)</label>
-      <p class="field-hint">이 재료를 <strong>언제까지 먹어야 하는지</strong>의 날짜입니다 (구매한 날짜가 아닙니다)</p>
-      <div class="ingredient-input-row">
-        <input type="date" id="ing-expiry">
+      <div class="ingredient-input-row" style="align-items:center">
+        <button class="chip" type="button" id="urgent-toggle" onclick="toggleUrgent(this)">🔥 곧 먹어야 해요</button>
         <button class="add-btn" type="button" onclick="addIngredient()">추가</button>
+      </div>
+      <p class="field-hint">켜두면 추천 시 이 재료를 우선적으로 활용하는 레시피를 먼저 보여줍니다.</p>
+      <a href="#" id="exact-date-link" onclick="showExactDate(event)" style="font-size:12px; color:var(--text-light); text-decoration:underline; cursor:pointer">정확한 소비기한을 아시나요? (선택)</a>
+      <div id="exact-date-wrap" style="display:none; margin-top:8px">
+        <input type="date" id="ing-expiry" style="width:100%">
+        <p class="field-hint">이 재료를 <strong>언제까지 먹어야 하는지</strong>의 날짜입니다 (구매한 날짜가 아닙니다). 입력하면 위 토글보다 우선 적용됩니다.</p>
       </div>
 
       <div class="ingredient-list" id="ingredient-list">
@@ -625,6 +629,19 @@ function changeMember(delta) {
 }
 
 // ── 재료 관리 (서버 DB와 항상 동기화) ──────────
+let urgentOn = false;
+
+function toggleUrgent(btn) {
+  urgentOn = !urgentOn;
+  btn.classList.toggle('selected', urgentOn);
+}
+
+function showExactDate(e) {
+  e.preventDefault();
+  document.getElementById('exact-date-wrap').style.display = 'block';
+  document.getElementById('exact-date-link').style.display = 'none';
+}
+
 async function refreshIngredients() {
   const res = await fetch('/fridge');
   state.ingredients = await res.json(); // [{id, name, expiryDate}, ...]
@@ -638,13 +655,23 @@ async function addIngredient() {
   const name = nameEl.value.trim();
   if (!name) { nameEl.focus(); return; }
 
+  // 정확한 날짜를 입력했으면 그걸 우선 쓰고, 아니면 "곧 먹어야 해요" 토글이 켜져 있을 때만
+  // 오늘 날짜를 임박 신호로 채워 넣는다(기존 daysUntil/D+n 배지·검증 로직을 그대로 재사용하기
+  // 위한 절충 — 정확한 날짜를 모르는 대부분의 경우 입력 마찰을 없애는 게 목적).
+  let expiryDate = expiryEl.value || null;
+  if (!expiryDate && urgentOn) {
+    expiryDate = today();
+  }
+
   await fetch('/fridge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, expiryDate: expiryEl.value || null }),
+    body: JSON.stringify({ name, expiryDate }),
   });
   nameEl.value = '';
   expiryEl.value = '';
+  urgentOn = false;
+  document.getElementById('urgent-toggle').classList.remove('selected');
   nameEl.focus();
   await refreshIngredients();
 }
