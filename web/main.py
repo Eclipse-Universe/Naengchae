@@ -107,12 +107,23 @@ class RecommendRequest(BaseModel):
     today: Optional[str] = None
 
 
+class UsedIngredientOut(BaseModel):
+    name: str
+    amount: str
+    perServingAmount: str
+
+
+class MissingIngredientOut(BaseModel):
+    name: str
+    amount: str
+
+
 class RecipeOut(BaseModel):
     name: str
     cookingTime: int
     servings: int
-    usedIngredients: list[str]
-    missingIngredients: list[str]
+    usedIngredients: list[UsedIngredientOut]
+    missingIngredients: list[MissingIngredientOut]
     tags: list[str]  # 한국어로 변환된 태그
     steps: list[str]
     usesExpiringIngredient: bool
@@ -215,8 +226,14 @@ async def recommend(req: RecommendRequest):
                 name=r.name,
                 cookingTime=r.cookingTime,
                 servings=r.servings,
-                usedIngredients=r.usedIngredients,
-                missingIngredients=r.missingIngredients,
+                usedIngredients=[
+                    UsedIngredientOut(name=u.name, amount=u.amount, perServingAmount=u.perServingAmount)
+                    for u in r.usedIngredients
+                ],
+                missingIngredients=[
+                    MissingIngredientOut(name=m.name, amount=m.amount)
+                    for m in r.missingIngredients
+                ],
                 tags=_convert_tags(r.tags),  # 개선점: 코드값 → 한국어
                 steps=r.steps,
                 usesExpiringIngredient=r.usesExpiringIngredient,

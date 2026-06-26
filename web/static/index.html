@@ -154,8 +154,15 @@
       color: var(--text);
     }
     .ingredient-input-row input:focus { border-color: var(--primary); }
-    .ingredient-input-row input[type="date"] { flex: 0 0 140px; }
+    .ingredient-input-row input[type="date"] { flex: 1; }
+    .field-hint {
+      font-size: 12px;
+      color: var(--text-light);
+      margin: -4px 0 8px;
+      line-height: 1.5;
+    }
     .add-btn {
+      flex-shrink: 0;
       padding: 10px 18px;
       background: var(--primary);
       color: white;
@@ -463,27 +470,20 @@
     <div class="card">
       <div class="card-title"><span class="icon">👤</span> 내 프로필</div>
 
-      <label class="field-label">가구 형태</label>
-      <div class="chip-group" id="household-chips">
-        <button class="chip" data-val="single" onclick="selectChip('household', 'single', this)">1인 가구</button>
-        <button class="chip" data-val="family" onclick="selectChip('household', 'family', this)">핵가족</button>
+      <label class="field-label">가구원 수</label>
+      <div class="counter">
+        <button class="counter-btn" type="button" onclick="changeMember(-1)">−</button>
+        <span class="counter-value" id="member-display">1</span>
+        <button class="counter-btn" type="button" onclick="changeMember(1)">+</button>
+        <span style="font-size:13px; color:var(--text-light); margin-left:4px">명</span>
       </div>
-
-      <div id="member-count-section" style="display:none">
-        <label class="field-label">가구원 수</label>
-        <div class="counter">
-          <button class="counter-btn" onclick="changeMember(-1)">−</button>
-          <span class="counter-value" id="member-display">2</span>
-          <button class="counter-btn" onclick="changeMember(1)">+</button>
-          <span style="font-size:13px; color:var(--text-light); margin-left:4px">명</span>
-        </div>
-      </div>
+      <p class="field-hint">레시피 분량과 재료 수량이 이 인원 수에 맞춰 계산됩니다 (5명은 "5명 이상"으로 처리)</p>
 
       <label class="field-label">조리 환경</label>
       <div class="chip-group" id="cooking-env-chips">
-        <button class="chip" data-val="microwave" onclick="selectChip('cookingEnv', 'microwave', this)">⚡ 전자레인지만</button>
-        <button class="chip" data-val="oneburner" onclick="selectChip('cookingEnv', 'oneburner', this)">🔥 가스레인지 1구</button>
-        <button class="chip" data-val="full" onclick="selectChip('cookingEnv', 'full', this)">🍳 풀옵션</button>
+        <button class="chip" data-val="microwave" onclick="selectCookingEnv('microwave', this)">⚡ 전자레인지만</button>
+        <button class="chip" data-val="oneburner" onclick="selectCookingEnv('oneburner', this)">🔥 가스레인지 1구</button>
+        <button class="chip" data-val="full" onclick="selectCookingEnv('full', this)">🍳 풀옵션</button>
       </div>
 
       <label class="field-label">음식 취향 (복수 선택)</label>
@@ -501,9 +501,13 @@
       <div class="card-title"><span class="icon">🧊</span> 냉장고 재료</div>
 
       <div class="ingredient-input-row">
-        <input type="text" id="ing-name" placeholder="재료명 (예: 계란)" onkeydown="if(event.key==='Enter') addIngredient()">
-        <input type="date" id="ing-expiry" title="유통기한 (선택)">
-        <button class="add-btn" onclick="addIngredient()">추가</button>
+        <input type="text" id="ing-name" placeholder="재료명 (예: 계란)" onkeydown="if(event.key==='Enter') addIngredient()" style="flex:1">
+      </div>
+      <label class="field-label">유통기한 (선택)</label>
+      <p class="field-hint">이 재료를 <strong>언제까지 먹어야 하는지</strong>의 날짜입니다 (구매한 날짜가 아닙니다)</p>
+      <div class="ingredient-input-row">
+        <input type="date" id="ing-expiry">
+        <button class="add-btn" type="button" onclick="addIngredient()">추가</button>
       </div>
 
       <div class="ingredient-list" id="ingredient-list">
@@ -535,12 +539,18 @@
 <script>
 // ── 상태 ──────────────────────────────────────
 const state = {
-  household: null,      // 'single' | 'family'
-  memberCount: 2,
+  memberCount: 1,        // 가구 형태(single/family)는 이 값에서 자동으로 계산함
   cookingEnv: null,     // 'microwave' | 'oneburner' | 'full'
   preferences: [],      // ['korean', ...]
   ingredients: [],      // { name, expiryDate }
 };
+
+// 가구원 1명이면 'single', 그 이상이면 'family' — 서버 모델(UserProfile.householdType)과의
+// 호환을 위해 보내는 값일 뿐, 화면에는 가구원 수만 노출한다(1인가구/핵가족을 따로 고르게 하면
+// 2~3인 가구가 둘 중 뭘 골라야 할지 모호해지는 문제가 있었음).
+function householdTypeFromMemberCount() {
+  return state.memberCount === 1 ? 'single' : 'family';
+}
 
 // ── 유틸 ──────────────────────────────────────
 function today() {
@@ -554,7 +564,7 @@ function daysUntil(dateStr) {
 }
 
 function updateRecommendBtn() {
-  const ok = state.household && state.cookingEnv && state.preferences.length > 0 && state.ingredients.length > 0;
+  const ok = state.cookingEnv && state.preferences.length > 0 && state.ingredients.length > 0;
   document.getElementById('recommend-btn').disabled = !ok;
 }
 
@@ -563,12 +573,12 @@ function updateRecommendBtn() {
 // household/cookingEnv/preferences 세 가지가 모두 채워졌을 때만 저장을 시도한다 — 서버의
 // UserProfile 모델이 세 필드를 전부 필수로 받기 때문에 부분 상태로 보내면 422 에러가 난다.
 function persistProfileIfComplete() {
-  if (state.household && state.cookingEnv && state.preferences.length > 0) {
+  if (state.cookingEnv && state.preferences.length > 0) {
     fetch('/profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        householdType: state.household,
+        householdType: householdTypeFromMemberCount(),
         memberCount: state.memberCount,
         cookingEnv: state.cookingEnv,
         foodPreference: state.preferences,
@@ -577,20 +587,10 @@ function persistProfileIfComplete() {
   }
 }
 
-function selectChip(field, val, btn) {
-  // field: 'household' | 'cookingEnv'
-  const containerId = field === 'household' ? 'household-chips' : 'cooking-env-chips';
-  document.querySelectorAll(`#${containerId} .chip`).forEach(c => c.classList.remove('selected'));
+function selectCookingEnv(val, btn) {
+  document.querySelectorAll('#cooking-env-chips .chip').forEach(c => c.classList.remove('selected'));
   btn.classList.add('selected');
-
-  if (field === 'household') {
-    state.household = val;
-    const memberSection = document.getElementById('member-count-section');
-    memberSection.style.display = val === 'family' ? 'block' : 'none';
-    if (val === 'single') state.memberCount = 1;
-  } else {
-    state.cookingEnv = val;
-  }
+  state.cookingEnv = val;
   updateRecommendBtn();
   persistProfileIfComplete();
 }
@@ -620,6 +620,7 @@ function togglePref(val, btn) {
 function changeMember(delta) {
   state.memberCount = Math.max(1, Math.min(5, state.memberCount + delta));
   document.getElementById('member-display').textContent = state.memberCount;
+  updateRecommendBtn();
   persistProfileIfComplete();
 }
 
@@ -756,11 +757,11 @@ function renderRecipe(r, idx) {
   const tagsHtml = r.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('');
 
   const usedHtml = r.usedIngredients.length
-    ? r.usedIngredients.map(i => `<div>${esc(i)}</div>`).join('')
+    ? r.usedIngredients.map(i => `<div>${esc(i.name)} <span style="color:var(--text-light)">${esc(i.amount)}</span><span style="color:var(--text-light); font-size:11px"> · 1인분 ${esc(i.perServingAmount)}</span></div>`).join('')
     : '<div style="color:var(--text-light)">없음</div>';
 
   const missingHtml = r.missingIngredients.length
-    ? r.missingIngredients.map(i => `<div class="missing">+ ${esc(i)}</div>`).join('')
+    ? r.missingIngredients.map(i => `<div class="missing">+ ${esc(i.name)} ${esc(i.amount)}</div>`).join('')
     : '<div style="color:var(--primary)">없음 ✓</div>';
 
   const stepsHtml = r.steps.map((s, i) =>
@@ -806,16 +807,10 @@ async function loadProfile() {
   const profile = await res.json(); // 저장된 적 없으면 null
   if (!profile) return;
 
-  state.household = profile.householdType;
   state.memberCount = profile.memberCount;
   state.cookingEnv = profile.cookingEnv;
   state.preferences = profile.foodPreference;
 
-  document.querySelectorAll('#household-chips .chip').forEach(c => {
-    c.classList.toggle('selected', c.dataset.val === profile.householdType);
-  });
-  document.getElementById('member-count-section').style.display =
-    profile.householdType === 'family' ? 'block' : 'none';
   document.getElementById('member-display').textContent = profile.memberCount;
 
   document.querySelectorAll('#cooking-env-chips .chip').forEach(c => {

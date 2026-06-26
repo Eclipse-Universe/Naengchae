@@ -10,9 +10,10 @@ RECIPE_SYSTEM_PROMPT = """\
 
 추천 시 반드시 지켜야 할 규칙:
 1. 각 레시피는 사용자가 보유한 재료를 최대한 활용해야 합니다.
-   usedIngredients에는 [보유 재료] 목록에 있는 항목만 넣으세요.
-   기본 조미료(소금, 설탕, 간장 등)은 물론 usedIngredients에 포함하지 마세요.
-2. 보유하지 않은 재료가 꼭 필요하다면 missingIngredients에 적되, 최소화하세요.
+   usedIngredients의 각 항목은 {{name, amount, perServingAmount}} 형태입니다.
+   name에는 [보유 재료] 목록에 있는 이름만 넣으세요.
+   기본 조미료(소금, 설탕, 간장 등)는 물론 usedIngredients에 포함하지 마세요.
+2. 보유하지 않은 재료가 꼭 필요하다면 missingIngredients({{name, amount}} 형태)에 적되, 최소화하세요.
    아래 10가지 기본 조미료는 항상 있다고 가정하고 missingIngredients에 적지 않아도 됩니다:
    소금, 설탕, 후추, 식용유, 간장, 고추장, 된장, 참기름, 마늘, 고춧가루
    그 외 재료(마요네즈, 고춧가루, 두부, 식초, 버터, 치즈, 빵가루, 밥/쌀밥, 김치 등)는
@@ -30,7 +31,14 @@ RECIPE_SYSTEM_PROMPT = """\
    - full: 오븐, 에어프라이어, 가스레인지 등 모든 조리 도구 활용 가능.
 4. 사용자의 음식 취향(foodPreference)을 최대한 반영하세요.
    'none'이 포함되어 있으면 취향 제약 없이 자유롭게 추천하세요.
-5. 가구 형태(householdType)와 가구원 수(memberCount)에 맞는 분량(servings)으로 조정하세요.
+5. servings는 항상 가구원 수(memberCount)와 동일한 값으로 설정하세요(memberCount=4면 servings=4).
+   usedIngredients/missingIngredients의 amount는 그 servings 인분 전체를 만들 때 필요한 수량으로
+   적고, usedIngredients의 perServingAmount는 amount를 1인분으로 나눈 수량으로 적으세요
+   (예: servings=4, 계란 amount="4개"면 perServingAmount="1개"). 1인분으로 나누었을 때 딱 나누어
+   떨어지지 않으면 "1/2모", "0.5개"처럼 분수나 소수로 표기해도 됩니다.
+   단위는 재료 종류에 맞는 것을 쓰세요 — 두부는 모/조각, 계란은 개, 채소·고기·김치 등은 g(그램)
+   또는 "한 줌"처럼 그 재료에 자연스러운 단위. 다른 재료의 단위를 그대로 가져다 쓰지 마세요
+   (예: 김치에 두부 단위인 "모"를 쓰는 식의 실수를 하지 마세요).
 6. "유통기한 임박 재료" 목록에 있는 재료를 사용하는 레시피를 우선적으로 추천하고,
    해당 재료를 실제로 사용하는 레시피는 usesExpiringIngredient를 true로 표시하세요.
    임박 재료를 사용하지 않는 레시피는 usesExpiringIngredient를 false로 표시하세요.

@@ -30,17 +30,37 @@ class FridgeIngredient(BaseModel):
     )
 
 
+class UsedIngredient(BaseModel):
+    """레시피에서 실제로 사용하는 보유 재료 1개와 수량."""
+
+    name: str = Field(description="재료 이름 (보유 재료 목록에 있는 이름과 일치해야 함)")
+    amount: str = Field(
+        description="이 레시피의 servings 인분 기준 수량. 예: '1모', '200g', '2개'"
+    )
+    perServingAmount: str = Field(
+        description="amount를 1인분 기준으로 환산한 수량. 예: amount가 4인분 기준 '2개'라면 "
+                    "perServingAmount는 '0.5개'"
+    )
+
+
+class MissingIngredient(BaseModel):
+    """레시피에 추가로 필요한, 보유하지 않은 재료 1개와 수량."""
+
+    name: str = Field(description="재료 이름")
+    amount: str = Field(description="이 레시피의 servings 인분 기준으로 필요한 수량")
+
+
 class Recipe(BaseModel):
     """LLM이 추천하는 레시피 1개."""
 
     name: str = Field(description="레시피 이름")
     cookingTime: int = Field(description="예상 조리 시간 (분)")
-    servings: int = Field(description="몇 인분 기준인지")
-    usedIngredients: list[str] = Field(
+    servings: int = Field(description="몇 인분 기준인지. 사용자의 memberCount와 동일해야 함")
+    usedIngredients: list[UsedIngredient] = Field(
         description="사용자의 냉장고 보유 재료 목록에 있는 항목 중 이 레시피에서 사용하는 것만 포함. "
                     "소금·설탕·간장 등 기본 조미료는 물론 절대 포함하지 않음."
     )
-    missingIngredients: list[str] = Field(
+    missingIngredients: list[MissingIngredient] = Field(
         default_factory=list, description="추가로 필요한 재료 목록 (없으면 빈 리스트)"
     )
     tags: list[str] = Field(

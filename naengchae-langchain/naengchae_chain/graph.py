@@ -16,7 +16,7 @@ from langchain_core.vectorstores import VectorStoreRetriever
 from langgraph.graph import END, START, StateGraph
 
 from .chain import EXPIRY_WARNING_DAYS, _format_ingredients
-from .models import FridgeIngredient, RecipeRecommendation, UserProfile
+from .models import FridgeIngredient, RecipeRecommendation, UsedIngredient, UserProfile
 from .observability import extract_usage, log_event, summarize_usage, timed
 from .prompts import recipe_agent_prompt
 
@@ -83,8 +83,8 @@ def _ingredient_match(name: str, candidates: list[str]) -> bool:
     return False
 
 
-def _ingredient_match_any(used_ingredients: list[str], names: list[str]) -> bool:
-    return any(_ingredient_match(used, names) for used in used_ingredients)
+def _ingredient_match_any(used_ingredients: list[UsedIngredient], names: list[str]) -> bool:
+    return any(_ingredient_match(used.name, names) for used in used_ingredients)
 
 
 def build_recipe_agent_graph(
@@ -169,6 +169,7 @@ def build_recipe_agent_graph(
     def _validate(state: RecipeAgentState) -> dict:
         recommendation = state["recommendation"]
         cooking_env = state["profile"].cookingEnv
+        member_count = state["profile"].memberCount
         fridge_names = [ingredient.name for ingredient in state["ingredients"]]
         expiring_names = state["expiring_names"]
         forbidden_keywords = ENV_FORBIDDEN_KEYWORDS.get(cooking_env, [])
@@ -179,6 +180,13 @@ def build_recipe_agent_graph(
         for i, recipe in enumerate(recommendation.recipes, start=1):
             recipe_text = " ".join([recipe.name, *recipe.tags, *recipe.steps])
 
+            if recipe.servings != member_count:
+                issues.append(
+                    f"레시피 {i}({recipe.name}): servings가 {recipe.servings}인분인데 "
+                    f"사용자 가구원 수는 {member_count}명입니다. servings를 {member_count}로 "
+                    "맞추고 amount/perServingAmount도 그에 맞게 다시 계산하세요."
+                )
+
             for keyword in forbidden_keywords:
                 if keyword in recipe_text:
                     issues.append(
@@ -188,11 +196,11 @@ def build_recipe_agent_graph(
                     break
 
             for used in recipe.usedIngredients:
-                if used in BASIC_SEASONINGS:
+                if used.name in BASIC_SEASONINGS:
                     continue  # 기본 조미료는 항상 보유 가정
-                if not _ingredient_match(used, fridge_names):
+                if not _ingredient_match(used.name, fridge_names):
                     issues.append(
-                        f"레시피 {i}({recipe.name}): usedIngredients의 '{used}'가 "
+                        f"레시피 {i}({recipe.name}): usedIngredients의 '{used.name}'가 "
                         "보유 재료 목록에 없습니다."
                     )
 
