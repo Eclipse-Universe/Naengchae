@@ -17,6 +17,9 @@ from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "naengchae-langchain"))
 
+import json
+
+from naengchae_chain import db
 from naengchae_chain.graph import build_recipe_agent_graph, recommend_recipes_agent
 from naengchae_chain.knowledge_base import build_retriever
 from naengchae_chain.models import FridgeIngredient, RecipeRecommendation, UserProfile
@@ -41,6 +44,7 @@ def _init_models():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    db.init_db()
     _init_models()
     yield
 
@@ -82,12 +86,24 @@ class IngredientIn(BaseModel):
     expiryDate: Optional[str] = None
 
 
-class RecommendRequest(BaseModel):
+class IngredientOut(BaseModel):
+    id: int
+    name: str
+    expiryDate: Optional[str] = None
+
+
+class ProfileIn(BaseModel):
     householdType: str
     memberCount: int
     cookingEnv: str
     foodPreference: list[str]
-    ingredients: list[IngredientIn]
+
+
+class ProfileOut(ProfileIn):
+    pass
+
+
+class RecommendRequest(BaseModel):
     today: Optional[str] = None
 
 
@@ -120,21 +136,73 @@ async def index():
     return FileResponse("static/index.html")
 
 
+@app.get("/fridge", response_model=list[IngredientOut])
+async def list_fridge():
+    return [
+        IngredientOut(id=row.id, name=row.name, expiryDate=row.expiry_date)
+        for row in db.list_ingredients()
+    ]
+
+
+@app.post("/fridge", response_model=IngredientOut)
+async def add_fridge_ingredient(ingredient: IngredientIn):
+    row = db.add_ingredient(ingredient.name, ingredient.expiryDate)
+    return IngredientOut(id=row.id, name=row.name, expiryDate=row.expiry_date)
+
+
+@app.delete("/fridge/{ingredient_id}")
+async def delete_fridge_ingredient(ingredient_id: int):
+    deleted = db.delete_ingredient(ingredient_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="해당 재료를 찾을 수 없습니다.")
+    return {"deleted": True}
+
+
+@app.get("/profile", response_model=Optional[ProfileOut])
+async def get_profile():
+    row = db.get_profile()
+    if row is None:
+        return None
+    return ProfileOut(
+        householdType=row.household_type,
+        memberCount=row.member_count,
+        cookingEnv=row.cooking_env,
+        foodPreference=json.loads(row.food_preference),
+    )
+
+
+@app.post("/profile", response_model=ProfileOut)
+async def save_profile(profile: ProfileIn):
+    row = db.save_profile(
+        profile.householdType, profile.memberCount, profile.cookingEnv, profile.foodPreference
+    )
+    return ProfileOut(
+        householdType=row.household_type,
+        memberCount=row.member_count,
+        cookingEnv=row.cooking_env,
+        foodPreference=json.loads(row.food_preference),
+    )
+
+
 @app.post("/recommend", response_model=RecommendResponse)
 async def recommend(req: RecommendRequest):
     if _llm is None or _retriever is None:
         raise HTTPException(status_code=503, detail="모델 초기화 중입니다. 잠시 후 다시 시도하세요.")
 
+    profile_row = db.get_profile()
+    if profile_row is None:
+        raise HTTPException(status_code=400, detail="프로필이 없습니다. 먼저 프로필을 설정하세요.")
+
     try:
         profile = UserProfile(
-            householdType=req.householdType,
-            memberCount=req.memberCount,
-            cookingEnv=req.cookingEnv,
-            foodPreference=req.foodPreference,
+            householdType=profile_row.household_type,
+            memberCount=profile_row.member_count,
+            cookingEnv=profile_row.cooking_env,
+            foodPreference=json.loads(profile_row.food_preference),
         )
         ingredients = [
-            FridgeIngredient(name=i.name, expiryDate=i.expiryDate)
-            for i in req.ingredients
+            FridgeIngredient(name=row.name, expiryDate=row.expiry_date)
+            for row in db.list_ingredients()
         ]
         today = date.fromisoformat(req.today) if req.today else date.today()
 

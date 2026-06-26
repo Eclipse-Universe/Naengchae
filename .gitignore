@@ -50,3 +50,4 @@ __pycache__/
 .env
 naengchae-langchain/.env
 naengchae-langchain/logs/
+naengchae-langchain/naengchae.db

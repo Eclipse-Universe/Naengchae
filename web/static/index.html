@@ -559,6 +559,24 @@ function updateRecommendBtn() {
 }
 
 // ── 프로필 선택 ──────────────────────────────
+// 재료 추가/삭제와 마찬가지로 프로필도 바뀔 때마다 즉시 서버에 저장한다(별도 "저장" 버튼 없음).
+// household/cookingEnv/preferences 세 가지가 모두 채워졌을 때만 저장을 시도한다 — 서버의
+// UserProfile 모델이 세 필드를 전부 필수로 받기 때문에 부분 상태로 보내면 422 에러가 난다.
+function persistProfileIfComplete() {
+  if (state.household && state.cookingEnv && state.preferences.length > 0) {
+    fetch('/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        householdType: state.household,
+        memberCount: state.memberCount,
+        cookingEnv: state.cookingEnv,
+        foodPreference: state.preferences,
+      }),
+    }).catch(e => console.error('프로필 저장 실패', e));
+  }
+}
+
 function selectChip(field, val, btn) {
   // field: 'household' | 'cookingEnv'
   const containerId = field === 'household' ? 'household-chips' : 'cooking-env-chips';
@@ -574,6 +592,7 @@ function selectChip(field, val, btn) {
     state.cookingEnv = val;
   }
   updateRecommendBtn();
+  persistProfileIfComplete();
 }
 
 function togglePref(val, btn) {
@@ -595,32 +614,43 @@ function togglePref(val, btn) {
     }
   }
   updateRecommendBtn();
+  persistProfileIfComplete();
 }
 
 function changeMember(delta) {
   state.memberCount = Math.max(1, Math.min(5, state.memberCount + delta));
   document.getElementById('member-display').textContent = state.memberCount;
+  persistProfileIfComplete();
 }
 
-// ── 재료 관리 ──────────────────────────────────
-function addIngredient() {
+// ── 재료 관리 (서버 DB와 항상 동기화) ──────────
+async function refreshIngredients() {
+  const res = await fetch('/fridge');
+  state.ingredients = await res.json(); // [{id, name, expiryDate}, ...]
+  renderIngredients();
+  updateRecommendBtn();
+}
+
+async function addIngredient() {
   const nameEl = document.getElementById('ing-name');
   const expiryEl = document.getElementById('ing-expiry');
   const name = nameEl.value.trim();
   if (!name) { nameEl.focus(); return; }
 
-  state.ingredients.push({ name, expiryDate: expiryEl.value || null });
+  await fetch('/fridge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, expiryDate: expiryEl.value || null }),
+  });
   nameEl.value = '';
   expiryEl.value = '';
   nameEl.focus();
-  renderIngredients();
-  updateRecommendBtn();
+  await refreshIngredients();
 }
 
-function removeIngredient(idx) {
-  state.ingredients.splice(idx, 1);
-  renderIngredients();
-  updateRecommendBtn();
+async function removeIngredient(id) {
+  await fetch(`/fridge/${id}`, { method: 'DELETE' });
+  await refreshIngredients();
 }
 
 function renderIngredients() {
@@ -629,7 +659,7 @@ function renderIngredients() {
     list.innerHTML = '<div style="font-size:13px; color:var(--text-light); text-align:center; padding:12px 0">재료를 추가해보세요</div>';
     return;
   }
-  list.innerHTML = state.ingredients.map((ing, i) => {
+  list.innerHTML = state.ingredients.map((ing) => {
     const days = daysUntil(ing.expiryDate);
     const isUrgent = days !== null && days <= 1;
     const isExpiring = days !== null && days <= 3;
@@ -644,7 +674,7 @@ function renderIngredients() {
           <span class="ingredient-name">${esc(ing.name)}</span>
           ${badge}
         </span>
-        <button class="remove-btn" onclick="removeIngredient(${i})">✕</button>
+        <button class="remove-btn" onclick="removeIngredient(${ing.id})">✕</button>
       </div>`;
   }).join('');
 }
@@ -667,19 +697,11 @@ async function recommend() {
     </div>`;
 
   try {
-    const body = {
-      householdType: state.household,
-      memberCount: state.memberCount,
-      cookingEnv: state.cookingEnv,
-      foodPreference: state.preferences,
-      ingredients: state.ingredients,
-      today: today(),
-    };
-
+    // 프로필·재료는 서버 DB에 이미 저장돼 있으므로 today만 보내면 된다.
     const res = await fetch('/recommend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ today: today() }),
     });
 
     if (!res.ok) {
@@ -778,8 +800,40 @@ function renderRecipe(r, idx) {
     </div>`;
 }
 
-// ── 초기화 ──────────────────────────────────────
-updateRecommendBtn();
+// ── 초기화 (서버에 저장된 프로필·재료를 불러와 화면에 반영) ──
+async function loadProfile() {
+  const res = await fetch('/profile');
+  const profile = await res.json(); // 저장된 적 없으면 null
+  if (!profile) return;
+
+  state.household = profile.householdType;
+  state.memberCount = profile.memberCount;
+  state.cookingEnv = profile.cookingEnv;
+  state.preferences = profile.foodPreference;
+
+  document.querySelectorAll('#household-chips .chip').forEach(c => {
+    c.classList.toggle('selected', c.dataset.val === profile.householdType);
+  });
+  document.getElementById('member-count-section').style.display =
+    profile.householdType === 'family' ? 'block' : 'none';
+  document.getElementById('member-display').textContent = profile.memberCount;
+
+  document.querySelectorAll('#cooking-env-chips .chip').forEach(c => {
+    c.classList.toggle('selected', c.dataset.val === profile.cookingEnv);
+  });
+
+  document.querySelectorAll('#preference-chips .chip').forEach(c => {
+    c.classList.toggle('selected', profile.foodPreference.includes(c.dataset.val));
+  });
+}
+
+async function init() {
+  await loadProfile();
+  await refreshIngredients();
+  updateRecommendBtn();
+}
+
+init();
 </script>
 </body>
 </html>
