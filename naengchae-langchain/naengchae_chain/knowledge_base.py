@@ -7,10 +7,24 @@
 # 각 Document의 metadata["id"]는 retrieval 평가(eval/retrieval_cases.json)에서
 # ground truth로 참조하는 안정적인 식별자입니다 — page_content를 고쳐도 id는 바꾸지 마세요.
 
+import os
+from pathlib import Path
+
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStoreRetriever
+
+PACKAGE_ROOT = Path(__file__).resolve().parent.parent
+# Phase 6(배포)에서 추가: 코퍼스(94개 문서)를 매번 임베딩하면 콜드스타트(예: Render 무료
+# 티어의 15분 슬립 후 재시작)마다 Upstage 임베딩 API를 94번씩 호출하게 된다. 인덱스를
+# 디스크에 저장해두고 재사용하면 그 비용/지연을 없앨 수 있다. 이 디렉터리는 git에
+# 커밋해서 배포 환경의 "파일시스템이 휘발성이어도 git checkout으로는 항상 존재하는"
+# 특성을 이용한다 — 런타임에 새로 쓰는 데이터(SQLite 등)와는 달리 이 인덱스는 코드와
+# 같이 배포되는 정적 자산으로 취급한다.
+FAISS_INDEX_DIR = Path(
+    os.environ.get("NAENGCHAE_FAISS_INDEX_DIR", PACKAGE_ROOT / "faiss_index")
+)
 
 COOKING_KNOWLEDGE: list[Document] = [
     # ── 조리환경 (env) ──────────────────────────────────────────────
@@ -501,8 +515,43 @@ COOKING_KNOWLEDGE: list[Document] = [
 
 
 def build_vectorstore(embeddings: Embeddings) -> FAISS:
-    """조리 지식 코퍼스를 임베딩하여 FAISS 벡터스토어를 만듭니다."""
-    return FAISS.from_documents(COOKING_KNOWLEDGE, embeddings)
+    """조리 지식 코퍼스에 대한 FAISS 벡터스토어를 만듭니다.
+
+    FAISS_INDEX_DIR에 저장된 인덱스가 있고 문서 수가 COOKING_KNOWLEDGE와 일치하면
+    그걸 그대로 불러와서 임베딩 API 호출을 건너뜁니다(코퍼스를 고친 뒤 재배포 전에
+    `python -m naengchae_chain.knowledge_base`로 인덱스를 다시 만들어야 합니다 — 문서
+    개수가 다르면 자동으로 다시 빌드하지만, 내용만 바뀐 경우는 감지하지 못합니다).
+    """
+    if FAISS_INDEX_DIR.exists():
+        try:
+            vectorstore = FAISS.load_local(
+                str(FAISS_INDEX_DIR), embeddings, allow_dangerous_deserialization=True
+            )
+            if vectorstore.index.ntotal == len(COOKING_KNOWLEDGE):
+                return vectorstore
+        except Exception:
+            pass  # 손상되거나 호환 안 되는 캐시 - 아래에서 새로 빌드
+
+    vectorstore = FAISS.from_documents(COOKING_KNOWLEDGE, embeddings)
+    vectorstore.save_local(str(FAISS_INDEX_DIR))
+    return vectorstore
+
+
+if __name__ == "__main__":
+    # 코퍼스를 고친 뒤 인덱스 캐시를 다시 만들 때 직접 실행하는 진입점입니다.
+    #   cd naengchae-langchain && source .venv/bin/activate
+    #   python -m naengchae_chain.knowledge_base
+    import shutil
+
+    from dotenv import load_dotenv
+    from langchain_upstage import UpstageEmbeddings
+
+    load_dotenv(PACKAGE_ROOT / ".env")
+    if FAISS_INDEX_DIR.exists():
+        shutil.rmtree(FAISS_INDEX_DIR)
+    embeddings = UpstageEmbeddings(model="solar-embedding-1-large")
+    build_vectorstore(embeddings)
+    print(f"FAISS 인덱스 {len(COOKING_KNOWLEDGE)}개 문서 -> {FAISS_INDEX_DIR}에 저장 완료")
 
 
 def build_retriever(embeddings: Embeddings, k: int = 4) -> VectorStoreRetriever:

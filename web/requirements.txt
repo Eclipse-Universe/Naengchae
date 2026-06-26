@@ -1,0 +1,5 @@
+# 웹 데모(FastAPI) 전용 의존성입니다. naengchae_chain 패키지 자체의 의존성은
+# naengchae-langchain/requirements.txt에 있고, 배포 시 둘 다 설치합니다
+# (render.yaml의 buildCommand 참고).
+fastapi>=0.110
+uvicorn[standard]>=0.29

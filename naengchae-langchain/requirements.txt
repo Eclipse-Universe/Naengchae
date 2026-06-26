@@ -8,3 +8,4 @@ python-dotenv>=1.0
 sqlmodel>=0.0.39
 pytest>=8.0  # tests/ — LLM 호출 없는 순수 단위 테스트
 tenacity>=8.0  # graph.py invoke_with_retry — langchain의 전이 의존성이라 이미 있었지만 직접 import하므로 명시
+psycopg2-binary>=2.9  # Phase 6 배포 — DATABASE_URL(PostgreSQL)로 접속할 때 필요한 드라이버

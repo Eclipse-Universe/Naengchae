@@ -1,0 +1,29 @@
+# Render Blueprint — 무료 티어 배포 설정.
+#
+# 왜 SQLite가 아니라 DATABASE_URL(PostgreSQL)을 쓰는가: Render의 무료 웹 서비스는
+# 파일시스템이 휘발성이라(영구 디스크는 유료 플랜에만 있음) SQLite 파일로 배포하면
+# 재시작/재배포마다 냉장고 재료·프로필이 초기화된다. 무료 PostgreSQL은 별도
+# 관리형 서비스라 웹 서비스 재시작과 무관하게 데이터가 남는다. naengchae_chain/db.py가
+# DATABASE_URL이 있으면 자동으로 그걸 쓰도록 이미 분기돼 있어서, 코드 변경 없이
+# 이 한 줄(fromDatabase)만으로 전환된다.
+#
+# 자세한 배경: docs/ENGINEERING_LOG.md "Phase 6" 참고.
+
+services:
+  - name: naengchae-web
+    type: web
+    runtime: python
+    plan: free
+    buildCommand: pip install -r naengchae-langchain/requirements.txt -r web/requirements.txt
+    startCommand: cd web && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: naengchae-db
+          property: connectionString
+      - key: UPSTAGE_API_KEY
+        sync: false  # Render 대시보드에서 직접 입력해야 함 — 이 파일에는 비밀값을 넣지 않음
+
+databases:
+  - name: naengchae-db
+    plan: free
