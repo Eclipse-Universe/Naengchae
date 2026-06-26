@@ -524,6 +524,46 @@ QR코드 이미지로 주는 게 가장 신뢰도가 높다 — 다음에 비슷
 임시 터널(계정 없는 Cloudflare Quick Tunnel + Expo `--tunnel`)은 안정성 보장이 없는
 일회성 테스트 편의이고, Phase 6(배포)에서는 실제 호스팅으로 교체될 것이다.
 
+## Phase 5: 신뢰성 강화 — 단위 테스트, LLM 실패 폴백, 캐싱 (2026-06-26)
+
+**결정 1 — `_validate`를 LangGraph 클로저 밖으로 빼냄(동작 변경 없음, 테스트 가능성만
+목적):** 이 프로젝트의 핵심 로직(검증 규칙)인데도 `build_recipe_agent_graph` 안에 닫힌
+함수로 있어서 그래프/LLM 없이는 단위 테스트를 할 수 없었다. `graph.py`에 모듈 최상위
+`validate_recommendation(recommendation, cooking_env, member_count, fridge_names,
+expiring_names) -> list[str]`로 추출하고, `validate_node`는 이 함수를 호출한 뒤
+retry_count 계산만 담당하도록 분리했다. `tests/test_validate.py`에 Phase 1에서 고친
+회귀 버그(전자레인지+찜 모순)를 포함해 11개 케이스를 고정해뒀다 — LLM 호출 없이
+0.4초 안에 전부 돈다.
+
+**결정 2 — LLM 호출 실패를 "검증 실패"와 구분해서 별도로 처리:** 기존 재시도 루프
+(MAX_RETRIES=2, validate→generate)는 "LLM이 답은 했는데 규칙에 안 맞는" 경우만
+다루고, "LLM 호출 자체가 네트워크/요금제한으로 실패하는" 경우는 예외가 그대로
+전파돼 `web/main.py`가 raw 예외 메시지를 그대로 500으로 노출했다. `tenacity`로
+`invoke_with_retry()`를 만들어 `generate_chain.invoke`/`retriever.invoke` 양쪽을
+지수 백오프(최대 3회, 1~8초)로 감싸고, 그래도 실패하면 `LLMUnavailableError`로
+감싸 올린다. `web/main.py`는 이 예외만 503("잠시 후 다시 시도해주세요")으로 따로
+처리하고, 그 외 예외는 기존처럼 500으로 둔다 — SDK 내부 예외 타입을 API 레이어가
+몰라도 되게 하는 게 목적. `tests/test_retry.py`는 가짜 실패 함수로 재시도 횟수와
+최종 예외 타입을 검증한다(실제 LLM 호출 없이).
+
+**결정 3 — 추천 결과 캐싱은 기본 비활성(opt-in), web에서만 켬:** 같은
+(프로필, 보유재료, 날짜) 조합으로 또 추천을 누르면(새로고침, 중복 클릭) LLM을 다시
+부르지 않고 캐시된 결과를 반환하도록 `cache.py`(메모리 dict, SHA256 키, 단일 사용자라
+영속 캐시 불필요로 판단)를 추가했다. 이걸 `recommend_recipes_agent()`의 기본
+동작으로 켜지 않은 이유: `eval/run_eval.py`가 같은 `cases.json`으로 반복 실행될 때
+캐시가 켜져 있으면 두 번째 실행부터 LLM을 전혀 안 부르고 과거 결과만 돌려줘서 "평가"가
+무의미해진다. 그래서 `use_cache` 파라미터를 추가하고 `web/main.py`의 `/recommend`
+호출부에서만 `True`로 켰다. 캐시 hit도 `trace_id`를 새로 발급해 `request_start` →
+`cache_hit` → `request_end`(llm_calls=0, cost=0)를 그대로 로그에 남기게 했다 —
+관찰성 측면에서 "캐시로 비용이 0이 됐다"는 것도 추적 가능해야 한다고 판단.
+
+**검증:** `tests/`에 39개 단위 테스트(validate 11, observability 7, db 5, ingredients
+formatting 6, retry 4, cache 5) 추가, 전부 LLM 호출 없이 5초 안에 통과. 실제 웹 서버로
+캐시 동작도 직접 확인 — 동일 입력 2회 호출 시 1차 6.04초(실제 LLM 3회 재시도 포함) →
+2차 0.00초(캐시 히트), 로그에 `cache_hit: true`/`total_cost_usd: 0.0`로 정확히 기록됨.
+24건 평가 하니스 전체 재실행은 비용 문제로 이번엔 생략했다 — 대신 위 실제 호출 1건이
+검증 로직 재시도 경로(1→2→3차 시도, 실제로 재시도가 발생함)까지 자연스럽게 검증했다.
+
 ---
 
 ## 이 프로젝트의 핵심 차별점 (다시 명확히)

@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "naengchae-langchain"))
 import json
 
 from naengchae_chain import db
+from naengchae_chain.errors import LLMUnavailableError
 from naengchae_chain.graph import build_recipe_agent_graph, recommend_recipes_agent
 from naengchae_chain.knowledge_base import build_retriever
 from naengchae_chain.models import FridgeIngredient, RecipeRecommendation, UserProfile
@@ -218,7 +219,7 @@ async def recommend(req: RecommendRequest):
         today = date.fromisoformat(req.today) if req.today else date.today()
 
         recommendation, final_state = recommend_recipes_agent(
-            _llm, _retriever, profile, ingredients, today
+            _llm, _retriever, profile, ingredients, today, use_cache=True
         )
 
         recipes_out = [
@@ -249,5 +250,12 @@ async def recommend(req: RecommendRequest):
             retrievedContext=final_state["retrieved_context"],
         )
 
+    except LLMUnavailableError:
+        # 재시도(graph.py의 invoke_with_retry)를 다 써본 뒤에도 LLM이 안 되는 경우.
+        # SDK 내부 예외를 그대로 노출하지 않고, 클라이언트가 "잠시 후 다시 시도"로
+        # 처리할 수 있도록 503으로 의미를 명확히 한다.
+        raise HTTPException(
+            status_code=503, detail="지금 추천을 만들 수 없습니다. 잠시 후 다시 시도해주세요."
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

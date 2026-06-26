@@ -6,3 +6,5 @@ faiss-cpu>=1.8
 pydantic>=2.0
 python-dotenv>=1.0
 sqlmodel>=0.0.39
+pytest>=8.0  # tests/ — LLM 호출 없는 순수 단위 테스트
+tenacity>=8.0  # graph.py invoke_with_retry — langchain의 전이 의존성이라 이미 있었지만 직접 import하므로 명시
