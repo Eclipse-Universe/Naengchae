@@ -201,9 +201,8 @@ npx expo start
 1. ✅ 평가(Evaluation) 파이프라인 — 합성 테스트케이스로 통과율 측정 및 개선
 2. ✅ Observability — retrieve/generate/validate 구조화 로깅, 토큰/비용/지연시간 트래킹
 3. ✅ RAG 코퍼스 확장 + retrieval 품질 평가
-4. 🟡 백엔드 영속화(DB) + 모바일 화면 실제 구현·연동 — 백엔드+웹 검증 완료, FridgeScreen/
-   RecipeScreen 연동 완료(실기기 테스트는 사용자 진행 필요), ReportScreen은 추천 히스토리
-   기록이 더 필요해 별도로 다룸
+4. ✅ 백엔드 영속화(DB) + 모바일 화면 실제 구현·연동 — 백엔드+웹+실기기(iPhone) 검증 완료.
+   ReportScreen(재료 활용률 등)은 추천 히스토리 기록이 더 필요해 별도 작업으로 분리
 5. ⬜ 신뢰성 강화 — 단위 테스트, LLM 실패 폴백, 캐싱
 6. ⬜ 배포 + 데모 자료
 
