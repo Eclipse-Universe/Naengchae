@@ -4,9 +4,10 @@
 정리했습니다. 더 깊은 내용은 각 링크를 따라가세요.
 
 - **저장소**: https://github.com/Eclipse-Universe/Naengchae
-- **라이브 데모**: _(배포 URL을 여기에 채워주세요 — 예: `https://naengchae-web.onrender.com`)_
+- **라이브 데모**: https://naengchae-web.onrender.com/
   ⚠️ 무료 PostgreSQL이 생성 후 30일+14일 유예 후 만료되니, 포트폴리오 공개 시점에 데모가
-  살아있는지 먼저 확인하세요.
+  살아있는지 먼저 확인하세요(생성일 기준 약 44일 — 정확한 만료일은 Render 대시보드에서
+  확인 가능).
 - **전체 진행 기록**: [`README.md`](README.md), [`docs/ENGINEERING_LOG.md`](docs/ENGINEERING_LOG.md)
 
 ## 한 줄 소개
