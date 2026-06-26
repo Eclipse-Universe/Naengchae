@@ -25,7 +25,7 @@ naengchae-langchain/naengchae_chain/   # LangGraph RAG 에이전트 (핵심)
   ├─ chain.py           # 단순 prompt | llm.with_structured_output 체인
   ├─ graph.py           # retrieve → generate → validate → retry(최대 2회) LangGraph
   └─ knowledge_base.py  # FAISS 기반 조리 지식 코퍼스
-naengchae-langchain/eval/              # 평가 하니스 (Phase 1)
+naengchae-langchain/eval/              # 평가 하니스 (Phase 1) + retrieval 평가 (Phase 3)
 naengchae-langchain/observability/      # 관찰성 문서 + 샘플 로그 (Phase 2)
 web/                                    # FastAPI 데모 (Upstage solar-pro3 연동)
 src/                                    # Expo/React Native 모바일 앱 (온보딩 완성, 메인 탭은 placeholder)
@@ -77,6 +77,28 @@ LLM 호출마다 실제 토큰 사용량과 비용(Upstage 공식 가격 기준)
 Phase 1의 재시도율 개선이 통과율뿐 아니라 비용에도 직접 영향을 준다는 것을 수치로 확인했습니다
 (평균 재시도 0.62회가 LLM 호출 수를 24회→37회로 54% 늘림).
 
+## Phase 3: RAG 코퍼스 확장 + Retrieval 품질 평가 (2026-06)
+
+지식 코퍼스를 17~18개 → 94개 문서로 확장하고(`eval/cases.json`에 실제 등장하는 재료 31종 전수
+커버), retrieval 품질을 "랭킹이 정확한가"와 "코퍼스에 정보가 애초에 있는가"로 나눠 측정했습니다.
+자세한 방법론·한계·k값 결정 이유는
+[`naengchae-langchain/eval/RETRIEVAL_EVAL.md`](naengchae-langchain/eval/RETRIEVAL_EVAL.md)에
+있습니다.
+
+| 지표 (질의 38건 기준) | k=4 (현재 운영값) | k=8 |
+|---|---|---|
+| hit_rate | 1.0 | 1.0 |
+| recall | 0.900 | 0.951 |
+| MRR | 0.95 | 0.95 |
+
+k=8이 recall을 5.1%p 올리지만 컨텍스트(=비용)가 최대 2배 늘어나는 비용 대비 이득이 작아 k=4를
+유지했습니다. 코퍼스 확장 자체는 질의 38건 중 최소 10건(보수적 추정)을 구버전에서 전혀 답할 수
+없던 주제에서 새로 답할 수 있게 만들었습니다.
+
+**부수 효과:** 코퍼스를 확장한 뒤 Phase 1의 24개 에이전트 평가셋을 다시 돌려보니 최종 통과율이
+91.7%→**95.8%**로 올랐습니다(회귀 없음을 확인하려고 돌린 것인데 오히려 개선됨). 조리환경×취향
+조합 문서(combo-*)가 그동안 반복적으로 실패하던 "전자레인지+고단백" 케이스를 직접 해결했습니다.
+
 ## 실행 방법
 
 ### 평가 하니스
@@ -105,7 +127,7 @@ npx expo start
 
 1. ✅ 평가(Evaluation) 파이프라인 — 합성 테스트케이스로 통과율 측정 및 개선
 2. ✅ Observability — retrieve/generate/validate 구조화 로깅, 토큰/비용/지연시간 트래킹
-3. ⬜ RAG 코퍼스 확장 + retrieval 품질 평가
+3. ✅ RAG 코퍼스 확장 + retrieval 품질 평가
 4. ⬜ 백엔드 영속화(DB) + 모바일 화면 실제 구현·연동
 5. ⬜ 신뢰성 강화 — 단위 테스트, LLM 실패 폴백, 캐싱
 6. ⬜ 배포 + 데모 자료

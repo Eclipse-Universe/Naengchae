@@ -1,0 +1,34 @@
+{
+  "ranking": [
+    {
+      "k": 4,
+      "hit_rate": 1.0,
+      "recall": 0.9,
+      "mrr": 0.95
+    },
+    {
+      "k": 8,
+      "hit_rate": 1.0,
+      "recall": 0.951,
+      "mrr": 0.95
+    }
+  ],
+  "coverage_gap": {
+    "total_queries": 38,
+    "old_corpus_covered": 28,
+    "old_corpus_uncovered": 10,
+    "coverage_rate_old": 0.737,
+    "uncovered_query_ids": [
+      "lookup_carrot",
+      "lookup_scallion",
+      "lookup_pasta",
+      "lookup_napa_cabbage",
+      "lookup_mushroom",
+      "substitute_sesame_oil",
+      "substitute_mayo",
+      "expiring_dairy",
+      "expiring_seafood",
+      "household_large"
+    ]
+  }
+}
