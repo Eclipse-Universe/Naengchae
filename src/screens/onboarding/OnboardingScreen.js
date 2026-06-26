@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { colors } from '../../constants/colors';
 import { saveUserProfile } from '../../utils/storage';
+import { saveProfile } from '../../utils/api';
 import StepHousehold from './StepHousehold';
 import StepCookingEnv from './StepCookingEnv';
 import StepFoodPreference from './StepFoodPreference';
@@ -35,31 +36,20 @@ export default function OnboardingScreen({ navigation }) {
   const [currentStep, setCurrentStep] = useState(0);
 
   // ── 온보딩에서 수집할 사용자 프로필 정보 ──────────────────
-  // householdType: "single"(1인 가구) | "family"(핵가족) | null(미선택)
-  const [householdType, setHouseholdType] = useState(null);
-  // memberCount: 가족 인원수 (1~5, 5는 "5명 이상"을 의미)
+  // memberCount: 가구원 수 (1~5, 5는 "5명 이상"을 의미). householdType은 여기서 자동 계산
+  // (웹 데모에서 1인가구/핵가족 칩이 2~3인 가구에 애매했던 문제를 같은 방식으로 해결 —
+  // docs/ENGINEERING_LOG.md "Phase 4-2" 참고).
   const [memberCount, setMemberCount] = useState(1);
   // cookingEnv: "microwave" | "oneburner" | "full" | null(미선택)
   const [cookingEnv, setCookingEnv] = useState(null);
   // foodPreference: 선택된 음식 취향 값들의 배열 (예: ["korean", "highprotein"])
   const [foodPreference, setFoodPreference] = useState([]);
 
-  // Step1에서 "혼자 살아요"를 선택하면 인원수를 자동으로 1명으로 맞춰줍니다.
-  function handleSelectHouseholdType(type) {
-    setHouseholdType(type);
-    if (type === 'single') {
-      setMemberCount(1);
-    }
-  }
-
   // 현재 단계에서 "다음" 버튼을 눌러도 되는지 확인합니다.
-  // - Step1: 가구 유형을 선택해야 함
+  // - Step1: 가구원 수는 항상 기본값(1명)이 있으므로 별도 선택 없이도 진행 가능
   // - Step2: 조리 환경을 선택해야 함
   // - Step3: 음식 취향을 1개 이상 선택해야 함
   function canGoNext() {
-    if (currentStep === 0) {
-      return householdType !== null;
-    }
     if (currentStep === 1) {
       return cookingEnv !== null;
     }
@@ -77,16 +67,27 @@ export default function OnboardingScreen({ navigation }) {
 
     if (currentStep === TOTAL_STEPS - 1) {
       // 마지막 단계(Step3)에서는 온보딩을 마칩니다.
-      // 1) 지금까지 선택한 정보를 AsyncStorage에 저장하고
       const profile = {
-        householdType,
+        householdType: memberCount === 1 ? 'single' : 'family',
         memberCount,
         cookingEnv,
         foodPreference,
       };
+
+      // 1) 기기 로컬(AsyncStorage)에 저장 — 앱 재실행 시 "온보딩 완료 여부" 판단에 씀
       await saveUserProfile(profile);
 
-      // 2) 메인 탭 화면으로 이동합니다.
+      // 2) 백엔드 DB에도 저장 — 레시피 추천 API(/recommend)는 이 DB의 프로필을 읽음.
+      //    네트워크가 없거나 백엔드 주소가 아직 안 맞아도 온보딩 자체는 막지 않고
+      //    best-effort로만 시도한다 — 추천을 누르는 시점에 ensureProfileSynced로
+      //    한 번 더 재시도하기 때문에(api.js), 여기서 실패해도 복구 가능하다.
+      try {
+        await saveProfile(profile);
+      } catch (e) {
+        console.warn('온보딩 중 서버 프로필 동기화 실패(나중에 재시도됨):', e.message);
+      }
+
+      // 3) 메인 탭 화면으로 이동합니다.
       //    replace를 사용해서 "뒤로 가기"를 눌러도 온보딩으로
       //    돌아오지 않도록 합니다.
       navigation.replace('MainTabs');
@@ -121,14 +122,9 @@ export default function OnboardingScreen({ navigation }) {
         scrollEventThrottle={16} // 스크롤 이벤트를 얼마나 자주 감지할지
         onMomentumScrollEnd={handleScrollEnd}
       >
-        {/* Step 1: 가구 유형 선택 (이번 작업에서 완성) */}
+        {/* Step 1: 가구원 수 선택 */}
         <View style={{ width: SCREEN_WIDTH }}>
-          <StepHousehold
-            householdType={householdType}
-            memberCount={memberCount}
-            onSelectHouseholdType={handleSelectHouseholdType}
-            onChangeMemberCount={setMemberCount}
-          />
+          <StepHousehold memberCount={memberCount} onChangeMemberCount={setMemberCount} />
         </View>
 
         {/* Step 2: 조리 환경 선택 */}
