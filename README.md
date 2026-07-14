@@ -231,9 +231,12 @@ python3 -m pytest tests/ -v
 
 ### 웹 데모
 ```bash
-cd web
-pip install -r ../naengchae-langchain/requirements.txt fastapi uvicorn
-uvicorn main:app --reload
+cd naengchae-langchain
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt -r ../web/requirements.txt
+echo "UPSTAGE_API_KEY=..." > .env
+cd ../web && uvicorn main:app --reload
+# → http://localhost:8000
 ```
 
 ### 모바일 앱
@@ -251,8 +254,8 @@ npx expo start
 4. ✅ 백엔드 영속화(DB) + 모바일 화면 실제 구현·연동 — 백엔드+웹+실기기(iPhone) 검증 완료.
    ReportScreen(재료 활용률 등)은 추천 히스토리 기록이 더 필요해 별도 작업으로 분리
 5. ✅ 신뢰성 강화 — 단위 테스트(39개), LLM 실패 폴백(재시도+503), 캐싱
-6. 🟡 배포 + 데모 자료 — 배포 설정(render.yaml, Postgres 지원, FAISS 캐싱) 완료, 실제
-   계정 생성·배포는 사용자 진행 필요. 데모 자료(`docs/portfolio/`)는 준비 완료
+6. ✅ 배포 + 데모 자료 — https://naengchae-web.onrender.com/ 라이브. 데모 자료
+   (`docs/portfolio/`) 준비 완료
 
 각 단계에서 만난 문제와 해결 전략은 [`docs/ENGINEERING_LOG.md`](docs/ENGINEERING_LOG.md)에 계속
 누적해서 기록합니다.
